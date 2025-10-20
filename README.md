@@ -56,5 +56,28 @@ python scripts/generate_coloring_pages.py --prompt "cute forest animals" --count
 python scripts/generate_coloring_pages.py --prompt "forest cabins" --skip-process
 ```
 
+## Export to PDF for KDP
+Combine processed images from `output/` into a print-ready PDF.
+
+```
+# Letter (8.5x11") at 300 DPI, no bleed, shuffled order, 60 pages
+python scripts/export_pdf.py --paper letter --dpi 300 --bleed none --shuffle --count 60
+
+# A4 at 300 DPI with 3mm bleed, first 40 pages
+python scripts/export_pdf.py --paper a4 --dpi 300 --bleed 3mm --count 40
+```
+
+Details:
+- Input folder: `output/` (processed PNGs). Use `--input` to override.
+- Page count must be between 30 and 120 (inclusive).
+- Outputs: `exports/book-<paper>-<timestamp>.pdf` and a manifest JSON in `logs/`.
+
+### KDP Upload Steps
+1. Interior: choose Black & White, select bleed to match your export, and upload the generated PDF.
+2. Trim size: choose `US Letter` (8.5" x 11") or `A4` to match your PDF.
+3. Print settings: black on white; target 300 DPI.
+4. Cover: create/upload a separate cover (interior PDF does not include the cover).
+5. Preview: ensure important content stays clear of the trim/bleed area.
+
 ## License
 MIT
