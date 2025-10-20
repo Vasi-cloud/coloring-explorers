@@ -33,6 +33,28 @@ python scripts/process_images.py --input input --output output \
 - Ensure strong, closed outlines; adjust `--thicken` as needed.
 - Leave margin safety for trim; the script pads to full page by default.
 
+## Generate From Prompts (OpenAI)
+This script uses OpenAI's Images API to create clean line-art, then auto-converts them into bold, print-ready pages.
+
+Requirements:
+- Set your OpenAI API key in the environment: `OPENAI_API_KEY`
+- Install deps: `pip install -r scripts/requirements.txt`
+
+Examples:
+```
+# Windows (PowerShell)
+$env:OPENAI_API_KEY="sk-..."
+
+# macOS/Linux
+export OPENAI_API_KEY="sk-..."
+
+# Generate 10 line-art images and convert to 8.5"x11" pages
+python scripts/generate_coloring_pages.py --prompt "cute forest animals" --count 10 \
+  --size 1024x1024 --resize 2550x3300 --thicken 2 --threshold 160
+
+# Only generate (skip conversion)
+python scripts/generate_coloring_pages.py --prompt "forest cabins" --skip-process
+```
+
 ## License
 MIT
-
