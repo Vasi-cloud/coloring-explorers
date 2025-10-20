@@ -40,6 +40,16 @@ Requirements:
 - Set your OpenAI API key in the environment: `OPENAI_API_KEY`
 - Install deps: `pip install -r scripts/requirements.txt`
 
+Key options:
+- `--count` number of images to generate (default 10)
+- `--size` generation size, e.g. `1024x1024`
+- `--resize` output page size, e.g. `2550x3300` (8.5"x11" @ 300DPI)
+- `--thicken` line thickening radius in px
+- `--threshold` binarization cutoff 0–255
+- `--dpi` output PNG DPI (default 300)
+- `--trim-margins` auto-trim white margins before resizing
+- `--max_concurrency` parallelism for generation/processing (default 3)
+
 Examples:
 ```
 # Windows (PowerShell)
@@ -50,11 +60,18 @@ export OPENAI_API_KEY="sk-..."
 
 # Generate 10 line-art images and convert to 8.5"x11" pages
 python scripts/generate_coloring_pages.py --prompt "cute forest animals" --count 10 \
-  --size 1024x1024 --resize 2550x3300 --thicken 2 --threshold 160
+  --size 1024x1024 --resize 2550x3300 --thicken 2 --threshold 160 \
+  --dpi 300 --trim-margins --max_concurrency 3
 
 # Only generate (skip conversion)
 python scripts/generate_coloring_pages.py --prompt "forest cabins" --skip-process
 ```
+
+Notes:
+- The script shows progress bars for generation and processing.
+- Generation calls use retries with exponential backoff (up to 3 attempts).
+- Failures are logged to `logs/run-YYYYMMDD_HHMM.txt`; the script skips bad items and continues.
+- A final summary prints generated, processed, skipped, and elapsed time.
 
 ## License
 MIT
