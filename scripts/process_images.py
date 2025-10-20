@@ -13,6 +13,19 @@ def parse_size(value: str) -> Tuple[int, int]:
     return int(w), int(h)
 
 
+def trim_white_margins(img: Image.Image, threshold: int = 250, margin: int = 0) -> Image.Image:
+    # Works on L or RGB; convert to L for simplicity
+    gray = img.convert("L")
+    arr = np.array(gray)
+    mask = arr < threshold  # True where content is not white
+    if not mask.any():
+        return img
+    ys, xs = np.where(mask)
+    y0, y1 = max(0, ys.min() - margin), min(arr.shape[0], ys.max() + 1 + margin)
+    x0, x1 = max(0, xs.min() - margin), min(arr.shape[1], xs.max() + 1 + margin)
+    return img.crop((x0, y0, x1, y1))
+
+
 def fit_canvas(img: Image.Image, size: Tuple[int, int]) -> Image.Image:
     target_w, target_h = size
     # Preserve aspect ratio, then paste onto white canvas
@@ -65,14 +78,16 @@ def to_coloring(img: Image.Image, threshold: int, thicken_radius: int) -> Image.
     return Image.fromarray(bin_arr, mode="L")
 
 
-def process_file(src: Path, dst_dir: Path, resize: Tuple[int, int], threshold: int, thicken_radius: int):
+def process_file(src: Path, dst_dir: Path, resize: Tuple[int, int], threshold: int, thicken_radius: int, *, dpi: int = 300, trim_margins: bool = False):
     try:
         with Image.open(src) as im:
             im = im.convert("RGB")
+            if trim_margins:
+                im = trim_white_margins(im)
             fitted = fit_canvas(im, resize)
             out_img = to_coloring(fitted, threshold=threshold, thicken_radius=thicken_radius)
             dst = dst_dir / (src.stem + "_coloring.png")
-            out_img.save(dst, format="PNG", dpi=(300, 300))
+            out_img.save(dst, format="PNG", dpi=(dpi, dpi))
             print(f"✔ Wrote {dst}")
     except Exception as e:
         print(f"✖ Failed {src}: {e}")
@@ -85,6 +100,8 @@ def main():
     ap.add_argument("--resize", default="2550x3300", help="WxH in pixels (e.g., 2550x3300 for 8.5x11 @ 300DPI)")
     ap.add_argument("--threshold", type=int, default=160, help="binarization threshold 0-255")
     ap.add_argument("--thicken", type=int, default=2, help="line thickening radius in pixels (0 to disable)")
+    ap.add_argument("--dpi", type=int, default=300, help="output DPI for saved PNGs")
+    ap.add_argument("--trim-margins", action="store_true", help="auto-trim white margins before resize")
     args = ap.parse_args()
 
     in_dir = Path(args.input)
@@ -98,9 +115,8 @@ def main():
         print(f"No images found in {in_dir}. Supported: {sorted(exts)}")
         return
     for f in files:
-        process_file(f, out_dir, size, args.threshold, args.thicken)
+        process_file(f, out_dir, size, args.threshold, args.thicken, dpi=args.dpi, trim_margins=args.trim_margins)
 
 
 if __name__ == "__main__":
     main()
-
