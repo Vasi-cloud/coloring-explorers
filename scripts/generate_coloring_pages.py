@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 import subprocess
 
 try:
@@ -46,12 +46,22 @@ def backoff_sleep(attempt: int) -> None:
     time.sleep(delay)
 
 
-def generate_one(client: OpenAI, full_prompt: str, size: str, out_path: Path, logfile: Path) -> bool:
-    tries = 3
+def _is_access_error(err: Exception) -> bool:
+    msg = str(err).lower()
+    # Heuristic: 403s and common access phrases
+    return (
+        "403" in msg
+        or "must be verified" in msg
+        or "permission" in msg
+        or "access" in msg and "model" in msg
+    )
+
+
+def _generate_with_model(client: OpenAI, model: str, full_prompt: str, size: str, out_path: Path, logfile: Path, tries: int = 3) -> bool:
     for attempt in range(1, tries + 1):
         try:
             resp = client.images.generate(
-                model="gpt-image-1",
+                model=model,
                 prompt=full_prompt,
                 size=size,
             )
@@ -60,14 +70,46 @@ def generate_one(client: OpenAI, full_prompt: str, size: str, out_path: Path, lo
             out_path.write_bytes(img_bytes)
             return True
         except Exception as e:  # pragma: no cover (network)
-            log_error(logfile, f"generate failed ({out_path.name}) attempt {attempt}: {e}")
+            log_error(logfile, f"generate failed ({out_path.name}) attempt {attempt} [model={model}]: {e}")
             if attempt < tries:
                 backoff_sleep(attempt)
             else:
                 return False
 
 
-def generate_images(prompt: str, count: int, size: str, input_dir: Path, max_workers: int, logfile: Path) -> Tuple[List[Path], List[str]]:
+def generate_one(client: OpenAI, full_prompt: str, size: str, out_path: Path, logfile: Path, prefer_model: str = "auto") -> Tuple[bool, str]:
+    # Forced model path
+    if prefer_model and prefer_model.lower() != "auto":
+        ok = _generate_with_model(client, prefer_model, full_prompt, size, out_path, logfile)
+        return ok, prefer_model
+
+    # Auto path: prefer gpt-image-1, fall back to dall-e-3 only on access errors
+    try:
+        ok = _generate_with_model(client, "gpt-image-1", full_prompt, size, out_path, logfile)
+        if ok:
+            return True, "gpt-image-1"
+        # If it failed after retries, do not automatically fall back unless last error suggested access issues.
+        # We didn't keep the last exception here, so only fall back when an immediate access error occurs below.
+    except Exception:
+        # _generate_with_model swallows exceptions and returns False, so this shouldn't run.
+        pass
+
+    # Single immediate probe to detect access error and trigger fallback
+    try:
+        resp = client.images.generate(model="gpt-image-1", prompt=full_prompt, size=size)
+        b64 = resp.data[0].b64_json
+        out_path.write_bytes(base64.b64decode(b64))
+        return True, "gpt-image-1"
+    except Exception as first_err:  # pragma: no cover
+        if _is_access_error(first_err):
+            log_error(logfile, f"access error for gpt-image-1 on {out_path.name}; falling back to dall-e-3: {first_err}")
+            ok_fb = _generate_with_model(client, "dall-e-3", full_prompt, size, out_path, logfile)
+            return ok_fb, "dall-e-3" if ok_fb else "dall-e-3"
+        # Non-access error: honor original behavior (retries already attempted above)
+        return False, "gpt-image-1"
+
+
+def generate_images(prompt: str, count: int, size: str, input_dir: Path, max_workers: int, logfile: Path, prefer_model: str = "auto") -> Tuple[List[Path], List[str], Set[str]]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise SystemExit("Missing OPENAI_API_KEY. Set it in your environment before running.")
@@ -77,6 +119,7 @@ def generate_images(prompt: str, count: int, size: str, input_dir: Path, max_wor
 
     saved: List[Path] = []
     failed: List[str] = []
+    models_used: Set[str] = set()
     style_prompt = (
         "Black-and-white line art coloring page. Clean, thick outlines, no shading, no gray. "
         "High contrast, white background, centered subject, kid-friendly, printable. "
@@ -88,17 +131,18 @@ def generate_images(prompt: str, count: int, size: str, input_dir: Path, max_wor
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         for i in range(1, count + 1):
             out_path = input_dir / f"{slug}-{i:02d}.png"
-            fut = pool.submit(generate_one, client, full_prompt, size, out_path, logfile)
+            fut = pool.submit(generate_one, client, full_prompt, size, out_path, logfile, prefer_model)
             tasks.append((i, out_path, fut))
 
         for i, out_path, fut in tqdm(tasks, desc="Generating", unit="img"):
-            ok = fut.result()
+            ok, used_model = fut.result()
+            models_used.add(used_model)
             if ok:
                 saved.append(out_path)
             else:
                 failed.append(out_path.name)
 
-    return saved, failed
+    return saved, failed, models_used
 
 
 def run_postprocess_parallel(project_root: Path, files: List[Path], output_dir: Path, resize: str, thicken: int, threshold: int, dpi: int, trim_margins: bool, max_workers: int, logfile: Path) -> Tuple[int, List[str]]:
@@ -148,6 +192,7 @@ def main():
     ap.add_argument("--dpi", type=int, default=300, help="output DPI for saved PNGs")
     ap.add_argument("--trim-margins", action="store_true", help="auto-trim white margins before resize")
     ap.add_argument("--max_concurrency", type=int, default=3, help="parallelism for generation/processing")
+    ap.add_argument("--model", default="auto", help="force a model name (e.g. 'gpt-image-1', 'dall-e-3'); default 'auto'")
     ap.add_argument("--skip-process", action="store_true", help="only generate images, skip conversion")
     args = ap.parse_args()
 
@@ -160,8 +205,24 @@ def main():
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Model strategy log
+    if args.model and args.model.lower() != "auto":
+        strategy_msg = f"Using model: {args.model} (forced)"
+    else:
+        strategy_msg = "Using model: auto (prefer gpt-image-1, fallback to dall-e-3 on 403/access)"
+    print(strategy_msg)
+    log_error(logfile, strategy_msg)
+
     # Generate
-    saved, gen_failed = generate_images(args.prompt, args.count, args.size, input_dir, args.max_concurrency, logfile)
+    saved, gen_failed, models_used = generate_images(
+        args.prompt,
+        args.count,
+        args.size,
+        input_dir,
+        args.max_concurrency,
+        logfile,
+        prefer_model=args.model or "auto",
+    )
 
     processed = 0
     proc_failed: List[str] = []
@@ -182,8 +243,15 @@ def main():
         proc_failed = failures
 
     elapsed = time.time() - t0
+    # Log models actually used
+    if models_used:
+        used_str = ", ".join(sorted(models_used))
+        log_error(logfile, f"models_used: {used_str}")
+
     print("\nSummary:")
     print(f"  Generated: {len(saved)}")
+    if models_used:
+        print(f"  Models used: {', '.join(sorted(models_used))}")
     if gen_failed:
         print(f"  Generation skipped/failed: {len(gen_failed)} => {gen_failed}")
     if not args.skip_process:

@@ -49,6 +49,7 @@ Key options:
 - `--dpi` output PNG DPI (default 300)
 - `--trim-margins` auto-trim white margins before resizing
 - `--max_concurrency` parallelism for generation/processing (default 3)
+- `--model` force a model (default `auto`). Try `gpt-image-1` or `dall-e-3`.
 
 Examples:
 ```
@@ -65,6 +66,9 @@ python scripts/generate_coloring_pages.py --prompt "cute forest animals" --count
 
 # Only generate (skip conversion)
 python scripts/generate_coloring_pages.py --prompt "forest cabins" --skip-process
+
+# Force an alternative model (fallback for access issues)
+python scripts/generate_coloring_pages.py --prompt "cute forest animals" --model dall-e-3
 ```
 
 Notes:
@@ -72,6 +76,9 @@ Notes:
 - Generation calls use retries with exponential backoff (up to 3 attempts).
 - Failures are logged to `logs/run-YYYYMMDD_HHMM.txt`; the script skips bad items and continues.
 - A final summary prints generated, processed, skipped, and elapsed time.
+
+Troubleshooting:
+- If you see 403/invalid access for `gpt-image-1`, either pass `--model dall-e-3` or verify your organization at `https://platform.openai.com/settings/organization/general`. After verification, access can take up to ~15 minutes to propagate.
 
 ## Generate a Cover for KDP
 Create a 2560x1600 PNG front cover with AI background and text overlay.
