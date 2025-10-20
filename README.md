@@ -73,5 +73,39 @@ Notes:
 - Failures are logged to `logs/run-YYYYMMDD_HHMM.txt`; the script skips bad items and continues.
 - A final summary prints generated, processed, skipped, and elapsed time.
 
+## Generate a Cover for KDP
+Create a 2560x1600 PNG front cover with AI background and text overlay.
+
+Requirements:
+- Set `OPENAI_API_KEY` and install dependencies: `pip install -r scripts/requirements.txt`
+
+Examples:
+```
+# Light, playful cover with title/subtitle
+python scripts/generate_cover.py \
+  --title "Forest Buddies" \
+  --subtitle "Cute Creatures to Color" \
+  --theme "whimsical forest scene, clean space for title" \
+  --bg light --style playful --dpi 300 --preview
+
+# Dark elegant cover without subtitle
+python scripts/generate_cover.py \
+  --title "Nighttime Explorers" \
+  --theme "starry forest sky, tasteful minimal composition" \
+  --bg dark --style elegant
+```
+
+Flags:
+- `--title` (required) and `--subtitle` (optional)
+- `--theme` (required) background image theme prompt
+- `--brand` footer brand (default: "Coloring Explorers")
+- `--bg` `light|dark` controls background brightness and text color defaults
+- `--style` `playful|elegant|cute` adjusts prompt styling
+- `--dpi` PNG DPI metadata (default 300)
+- `--preview` shows a small preview window before saving
+
+Output:
+- Saves to `exports/covers/<slug>-cover.png`
+
 ## License
 MIT
