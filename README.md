@@ -50,6 +50,7 @@ Key options:
 - `--trim-margins` auto-trim white margins before resizing
 - `--max_concurrency` parallelism for generation/processing (default 3)
 - `--model` force a model (default `auto`). Try `gpt-image-1` or `dall-e-3`.
+- `--debug` dump raw image API responses to `logs/debug-*.json` for support.
 
 Examples:
 ```
@@ -79,6 +80,8 @@ Notes:
 
 Troubleshooting:
 - If you see 403/invalid access for `gpt-image-1`, either pass `--model dall-e-3` or verify your organization at `https://platform.openai.com/settings/organization/general`. After verification, access can take up to ~15 minutes to propagate.
+- If you see `NoneType` or `No b64_json` errors, try `--model dall-e-3` and re-run. Also include `--debug` to capture the raw API responses for support.
+- Ensure `OPENAI_API_KEY` is set in the same terminal session before running.
 
 ## Generate a Cover for KDP
 Create a 2560x1600 PNG front cover with AI background and text overlay.
