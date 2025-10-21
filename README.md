@@ -107,7 +107,7 @@ Troubleshooting:
 - Ensure `OPENAI_API_KEY` is set in the same terminal session before running.
 
 ## Generate a Cover for KDP
-Create a 2560x1600 PNG front cover with AI background and text overlay.
+Create a 2560x1600 PNG front cover with AI background and text overlay. Images are generated at supported sizes and then upscaled/canvased to 2560x1600.
 
 Requirements:
 - Set `OPENAI_API_KEY` and install dependencies: `pip install -r scripts/requirements.txt`
@@ -119,13 +119,19 @@ python scripts/generate_cover.py \
   --title "Forest Buddies" \
   --subtitle "Cute Creatures to Color" \
   --theme "whimsical forest scene, clean space for title" \
-  --bg light --style playful --dpi 300 --preview
+  --bg light --style playful --dpi 300 --size 1536x1024 --model dall-e-3 --preview
 
 # Dark elegant cover without subtitle
 python scripts/generate_cover.py \
   --title "Nighttime Explorers" \
   --theme "starry forest sky, tasteful minimal composition" \
-  --bg dark --style elegant
+  --bg dark --style elegant --size 1024x1536 --model dall-e-3
+
+# Solid background (no API call)
+python scripts/generate_cover.py \
+  --title "Forest Buddies" \
+  --theme "whimsical forest scene" \
+  --bg light --style playful --no-bg
 ```
 
 Flags:
@@ -136,9 +142,16 @@ Flags:
 - `--style` `playful|elegant|cute` adjusts prompt styling
 - `--dpi` PNG DPI metadata (default 300)
 - `--preview` shows a small preview window before saving
+- `--model` image model (default `dall-e-3`); e.g. `dall-e-3`, `gpt-image-1`
+- `--size` generation size for the Images API (default `1536x1024`); supported: `1024x1024`, `1024x1536`, `1536x1024`
+- `--no-bg` skip AI background and use a solid canvas (still overlays title/subtitle/brand)
 
 Output:
 - Saves to `exports/covers/<slug>-cover.png`
+
+Behavior:
+- The script never requests `2560x1600` from the API. It generates at a supported size and then upscales/fits to `2560x1600` with aspect preserved and padding filled using a soft `--bg`-matched color.
+- On 403/access or API failure, it automatically falls back to `--no-bg` and logs a warning.
 
 ## License
 MIT

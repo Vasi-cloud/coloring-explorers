@@ -3,9 +3,10 @@ import argparse
 import base64
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from PIL import Image, ImageDraw, ImageFont
+import sys
 
 try:
     from openai import OpenAI
@@ -14,6 +15,13 @@ except Exception as e:  # pragma: no cover
 
 
 TARGET_SIZE = (2560, 1600)  # width x height
+
+# Supported API sizes for image generation (do not request 2560x1600 from API)
+SUPPORTED_SIZES = [
+    "1024x1024",
+    "1024x1536",
+    "1536x1024",
+]
 
 
 def slugify(text: str) -> str:
@@ -28,7 +36,7 @@ def ensure_dir(path: Path) -> None:
 
 def find_font() -> Optional[str]:
     candidates = [
-        # Common cross‑platform font fallbacks
+        # Common cross-platform font fallbacks
         "C:/Windows/Fonts/SegoeUI-Bold.ttf",
         "C:/Windows/Fonts/arialbd.ttf",
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
@@ -53,25 +61,27 @@ def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         return ImageFont.load_default()
 
 
-def compose_cover(bg_img: Image.Image, title: str, subtitle: Optional[str], brand: str, theme_style: str, bg_mode: str, dpi: int) -> Image.Image:
-    # Ensure size and mode
-    bg_img = bg_img.convert("RGB")
+def compose_cover(bg_img: Optional[Image.Image], title: str, subtitle: Optional[str], brand: str, theme_style: str, bg_mode: str, dpi: int) -> Image.Image:
     # Fit background image to target while preserving aspect ratio
     target_w, target_h = TARGET_SIZE
-    img_ratio = bg_img.width / bg_img.height
-    target_ratio = target_w / target_h
-    if img_ratio > target_ratio:
-        new_w = target_w
-        new_h = int(new_w / img_ratio)
-    else:
-        new_h = target_h
-        new_w = int(new_h * img_ratio)
-    bg_resized = bg_img.resize((new_w, new_h), Image.LANCZOS)
     canvas_bg = (255, 255, 255) if bg_mode == "light" else (20, 24, 32)
     canvas = Image.new("RGB", TARGET_SIZE, color=canvas_bg)
-    x = (target_w - new_w) // 2
-    y = (target_h - new_h) // 2
-    canvas.paste(bg_resized, (x, y))
+
+    if bg_img is not None:
+        # Ensure size and mode
+        bg_img = bg_img.convert("RGB")
+        img_ratio = bg_img.width / bg_img.height
+        target_ratio = target_w / target_h
+        if img_ratio > target_ratio:
+            new_w = target_w
+            new_h = int(new_w / img_ratio)
+        else:
+            new_h = target_h
+            new_w = int(new_h * img_ratio)
+        bg_resized = bg_img.resize((new_w, new_h), Image.LANCZOS)
+        x = (target_w - new_w) // 2
+        y = (target_h - new_h) // 2
+        canvas.paste(bg_resized, (x, y))
 
     # Overlay a subtle dark/light vignette for readability (top area)
     overlay = Image.new("RGBA", TARGET_SIZE, (0, 0, 0, 0))
@@ -112,7 +122,7 @@ def compose_cover(bg_img: Image.Image, title: str, subtitle: Optional[str], bran
 
     # Draw shadow
     for dx, dy in [(2, 2), (0, 0)]:
-        color = shadow if (dx,dy)!=(0,0) else fg
+        color = shadow if (dx, dy) != (0, 0) else fg
         draw.text((title_x + dx, title_y + dy), title, font=title_font, fill=color)
 
     # Subtitle
@@ -124,11 +134,11 @@ def compose_cover(bg_img: Image.Image, title: str, subtitle: Optional[str], bran
         sub_x = (TARGET_SIZE[0] - sub_w) // 2
         sub_y = title_y + title_h + 20
         for dx, dy in [(1, 1), (0, 0)]:
-            color = shadow if (dx,dy)!=(0,0) else fg
+            color = shadow if (dx, dy) != (0, 0) else fg
             draw.text((sub_x + dx, sub_y + dy), subtitle, font=sub_font, fill=color)
 
     # Brand footer
-    brand_text = theme_style + (f" • {brand}" if brand else "")
+    brand_text = theme_style + (f" · {brand}" if brand else "")
     brand_font = load_font(50)
     b_bbox = draw.textbbox((0, 0), brand_text, font=brand_font)
     b_w = b_bbox[2] - b_bbox[0]
@@ -151,6 +161,14 @@ def main():
     ap.add_argument("--style", choices=["playful", "elegant", "cute"], default="playful", help="design style")
     ap.add_argument("--dpi", type=int, default=300, help="DPI metadata for saved PNG")
     ap.add_argument("--preview", action="store_true", help="show a preview window before saving")
+    ap.add_argument("--model", default="dall-e-3", help="image model, e.g. 'dall-e-3' or 'gpt-image-1' (default: dall-e-3)")
+    ap.add_argument(
+        "--size",
+        choices=SUPPORTED_SIZES,
+        default="1536x1024",
+        help="generation size (API): 1024x1024, 1024x1536, or 1536x1024",
+    )
+    ap.add_argument("--no-bg", action="store_true", help="skip AI background; use solid canvas only")
     args = ap.parse_args()
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -166,23 +184,34 @@ def main():
     }[args.style]
     bg_phrase = "light background" if args.bg == "light" else "dark background"
 
-    # Prompt for background art; ask for clean area for title
+    # Prompt for background art; ask for clean area for title. Do not demand exact pixels.
     prompt = (
-        f"Front book cover background art, {TARGET_SIZE[0]}x{TARGET_SIZE[1]} px. "
+        f"Front book cover background art. "
         f"Children's coloring book. {style_words}. {bg_phrase}. "
         f"Leave clean space for title. Avoid any text or watermarks. "
         f"Theme: {args.theme}."
     )
 
-    resp = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        size=f"{TARGET_SIZE[0]}x{TARGET_SIZE[1]}",
-    )
-    b64 = resp.data[0].b64_json
-    img_bytes = base64.b64decode(b64)
-    from io import BytesIO
-    bg_img = Image.open(BytesIO(img_bytes))
+    bg_img: Optional[Image.Image] = None
+    if not args.no_bg:
+        try:
+            resp = client.images.generate(
+                model=args.model,
+                prompt=prompt,
+                size=args.size,  # Only request supported sizes; never 2560x1600
+                response_format="b64_json",
+            )
+            b64 = resp.data[0].b64_json
+            img_bytes = base64.b64decode(b64)
+            from io import BytesIO
+            bg_img = Image.open(BytesIO(img_bytes))
+        except Exception as e:  # pragma: no cover (network)
+            msg = str(e).lower()
+            warn = "[warn] Background generation failed; falling back to solid canvas (--no-bg)."
+            if "403" in msg or "forbidden" in msg or "permission" in msg or "access" in msg:
+                warn = "[warn] 403/access for image model; falling back to solid canvas (--no-bg)."
+            print(warn, file=sys.stderr)
+            bg_img = None
 
     composed = compose_cover(bg_img, args.title, args.subtitle, args.brand, args.style, args.bg, args.dpi)
 
@@ -197,7 +226,7 @@ def main():
     slug = slugify(args.title or args.theme) or "cover"
     out_path = out_dir / f"{slug}-cover.png"
     composed.save(out_path, format="PNG", dpi=(args.dpi, args.dpi))
-    print(f"✔ Saved cover: {out_path}")
+    print(f"Saved cover: {out_path}")
 
 
 if __name__ == "__main__":
