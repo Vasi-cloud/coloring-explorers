@@ -2,6 +2,12 @@
 import argparse
 import os
 from pathlib import Path
+from pathlib import Path
+try:
+    from dotenv import load_dotenv
+    load_dotenv( Path(__file__).resolve().parents[1] / ".env" )
+except Exception:
+    pass
 from typing import Tuple
 
 import numpy as np

@@ -8,6 +8,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from pathlib import Path
+try:
+    from dotenv import load_dotenv
+    load_dotenv( Path(__file__).resolve().parents[1] / ".env" )
+except Exception:
+    pass
 from typing import List, Optional, Tuple, Set
 import subprocess
 
