@@ -14,6 +14,10 @@ Generate simple, bold, KDP-ready coloring pages from prompts or images.
 ## Requirements
 - Python 3.10+
 - `pip install -r scripts/requirements.txt`
+- Environment config: scripts auto-load a `.env` at the project root if present.
+  - Create a file named `.env` next to the `scripts/` folder with:
+    
+    OPENAI_API_KEY=sk-...your-key...
 
 ## Usage
 1) Convert existing images to coloring pages
@@ -37,7 +41,7 @@ python scripts/process_images.py --input input --output output \
 This script uses OpenAI's Images API to create clean line-art, then auto-converts them into bold, print-ready pages.
 
 Requirements:
-- Set your OpenAI API key in the environment: `OPENAI_API_KEY`
+- Set your OpenAI API key in the environment: `OPENAI_API_KEY` (or place it in a project `.env` and it will be auto-loaded)
 - Install deps: `pip install -r scripts/requirements.txt`
 
 Key options:
@@ -55,10 +59,10 @@ Key options:
 Examples:
 ```
 # Windows (PowerShell)
-$env:OPENAI_API_KEY="sk-..."
+$env:OPENAI_API_KEY="sk-..."  # or put it into .env at project root
 
 # macOS/Linux
-export OPENAI_API_KEY="sk-..."
+export OPENAI_API_KEY="sk-..."  # or put it into .env at project root
 
 # Generate 10 line-art images and convert to 8.5"x11" pages
 python scripts/generate_coloring_pages.py --prompt "cute forest animals" --count 10 \
@@ -110,7 +114,7 @@ Troubleshooting:
 Create a 2560x1600 PNG front cover with AI background and text overlay. Images are generated at supported sizes and then upscaled/canvased to 2560x1600.
 
 Requirements:
-- Set `OPENAI_API_KEY` and install dependencies: `pip install -r scripts/requirements.txt`
+- Set `OPENAI_API_KEY` (env var or via `.env` at project root) and install dependencies: `pip install -r scripts/requirements.txt`
 
 Examples:
 ```
