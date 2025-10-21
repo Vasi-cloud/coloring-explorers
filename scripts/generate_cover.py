@@ -3,7 +3,7 @@ import argparse
 import base64
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from PIL import Image, ImageDraw, ImageFont
 import sys
@@ -36,7 +36,7 @@ def ensure_dir(path: Path) -> None:
 
 def find_font() -> Optional[str]:
     candidates = [
-        # Common cross‑platform font fallbacks
+        # Common cross-platform font fallbacks
         "C:/Windows/Fonts/SegoeUI-Bold.ttf",
         "C:/Windows/Fonts/arialbd.ttf",
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
@@ -122,7 +122,7 @@ def compose_cover(bg_img: Optional[Image.Image], title: str, subtitle: Optional[
 
     # Draw shadow
     for dx, dy in [(2, 2), (0, 0)]:
-        color = shadow if (dx,dy)!=(0,0) else fg
+        color = shadow if (dx, dy) != (0, 0) else fg
         draw.text((title_x + dx, title_y + dy), title, font=title_font, fill=color)
 
     # Subtitle
@@ -134,11 +134,11 @@ def compose_cover(bg_img: Optional[Image.Image], title: str, subtitle: Optional[
         sub_x = (TARGET_SIZE[0] - sub_w) // 2
         sub_y = title_y + title_h + 20
         for dx, dy in [(1, 1), (0, 0)]:
-            color = shadow if (dx,dy)!=(0,0) else fg
+            color = shadow if (dx, dy) != (0, 0) else fg
             draw.text((sub_x + dx, sub_y + dy), subtitle, font=sub_font, fill=color)
 
     # Brand footer
-    brand_text = theme_style + (f" • {brand}" if brand else "")
+    brand_text = theme_style + (f" · {brand}" if brand else "")
     brand_font = load_font(50)
     b_bbox = draw.textbbox((0, 0), brand_text, font=brand_font)
     b_w = b_bbox[2] - b_bbox[0]
@@ -184,7 +184,7 @@ def main():
     }[args.style]
     bg_phrase = "light background" if args.bg == "light" else "dark background"
 
-    # Prompt for background art; ask for clean area for title. Do not demand an exact pixel size here.
+    # Prompt for background art; ask for clean area for title. Do not demand exact pixels.
     prompt = (
         f"Front book cover background art. "
         f"Children's coloring book. {style_words}. {bg_phrase}. "
@@ -192,7 +192,7 @@ def main():
         f"Theme: {args.theme}."
     )
 
-    bg_img = None
+    bg_img: Optional[Image.Image] = None
     if not args.no_bg:
         try:
             resp = client.images.generate(
@@ -226,7 +226,7 @@ def main():
     slug = slugify(args.title or args.theme) or "cover"
     out_path = out_dir / f"{slug}-cover.png"
     composed.save(out_path, format="PNG", dpi=(args.dpi, args.dpi))
-    print(f"✔ Saved cover: {out_path}")
+    print(f"Saved cover: {out_path}")
 
 
 if __name__ == "__main__":
