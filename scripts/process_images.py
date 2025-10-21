@@ -7,6 +7,22 @@ from typing import Tuple
 import numpy as np
 from PIL import Image, ImageFilter
 
+# Auto-load .env from project root if present
+def _load_dotenv_if_present() -> None:
+    try:
+        from dotenv import load_dotenv  # type: ignore
+    except Exception:
+        return
+    root = Path(__file__).resolve().parents[1]
+    env_path = root / ".env"
+    if env_path.exists():
+        try:
+            load_dotenv(env_path)
+        except Exception:
+            pass
+
+_load_dotenv_if_present()
+
 
 def parse_size(value: str) -> Tuple[int, int]:
     w, h = value.lower().split("x")
