@@ -2,6 +2,16 @@
 import argparse
 import base64
 import os
+# --- Auto-load .env for OpenAI API key ---
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except Exception:
+    pass
+# --- End of .env loader ---
+
 from pathlib import Path
 from pathlib import Path
 try:
@@ -9,7 +19,7 @@ try:
     load_dotenv( Path(__file__).resolve().parents[1] / ".env" )
 except Exception:
     pass
-from typing import Optional
+from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 import sys
@@ -83,10 +93,39 @@ def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         return ImageFont.load_default()
 
 
-def compose_cover(bg_img: Optional[Image.Image], title: str, subtitle: Optional[str], brand: str, theme_style: str, bg_mode: str, dpi: int) -> Image.Image:
+def _parse_hex_color(value: Optional[str]) -> Optional[Tuple[int, int, int]]:
+    if not value:
+        return None
+    s = value.strip().lstrip('#')
+    if len(s) != 6:
+        raise ValueError(f"Invalid color '{value}'. Expected #RRGGBB.")
+    try:
+        r = int(s[0:2], 16)
+        g = int(s[2:4], 16)
+        b = int(s[4:6], 16)
+        return (r, g, b)
+    except Exception:
+        raise ValueError(f"Invalid color '{value}'. Expected #RRGGBB.")
+
+
+def compose_cover(
+    bg_img: Optional[Image.Image],
+    title: str,
+    subtitle: Optional[str],
+    brand: str,
+    theme_style: str,
+    bg_mode: str,
+    dpi: int,
+    bg_color_override: Optional[Tuple[int, int, int]] = None,
+    title_color_override: Optional[Tuple[int, int, int]] = None,
+) -> Image.Image:
     # Fit background image to target while preserving aspect ratio
     target_w, target_h = TARGET_SIZE
-    canvas_bg = (255, 255, 255) if bg_mode == "light" else (20, 24, 32)
+    canvas_bg = (
+        bg_color_override
+        if bg_color_override is not None
+        else ((255, 255, 255) if bg_mode == "light" else (20, 24, 32))
+    )
     canvas = Image.new("RGB", TARGET_SIZE, color=canvas_bg)
 
     if bg_img is not None:
@@ -115,7 +154,8 @@ def compose_cover(bg_img: Optional[Image.Image], title: str, subtitle: Optional[
     canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
 
     # Text colors
-    fg = (20, 24, 32) if bg_mode == "light" else (245, 247, 250)
+    default_fg = (20, 24, 32) if bg_mode == "light" else (245, 247, 250)
+    fg = title_color_override if title_color_override is not None else default_fg
     shadow = (0, 0, 0) if bg_mode == "light" else (0, 0, 0)
 
     draw = ImageDraw.Draw(canvas)
@@ -177,7 +217,11 @@ def main():
     ap = argparse.ArgumentParser(description="Generate a KDP cover image with OpenAI + Pillow text overlay")
     ap.add_argument("--title", required=True, help="book title text")
     ap.add_argument("--subtitle", help="optional subtitle text")
-    ap.add_argument("--theme", required=True, help="visual theme prompt for background image")
+    ap.add_argument(
+        "--theme",
+        required=False,
+        help="visual theme prompt for AI background image (required if not using --bg-image or --no-bg)",
+    )
     ap.add_argument("--brand", default="Coloring Explorers", help="brand or series name")
     ap.add_argument("--bg", choices=["light", "dark"], default="light", help="overall background brightness")
     ap.add_argument("--style", choices=["playful", "elegant", "cute"], default="playful", help="design style")
@@ -191,13 +235,26 @@ def main():
         help="generation size (API): 1024x1024, 1024x1536, or 1536x1024",
     )
     ap.add_argument("--no-bg", action="store_true", help="skip AI background; use solid canvas only")
+    ap.add_argument("--bg-image", dest="bg_image", help="path to a local background image to use (no API call)")
+    ap.add_argument("--bg-color", dest="bg_color", help="solid background color as #RRGGBB (overrides --bg)")
+    ap.add_argument("--title-color", dest="title_color", help="title/subtitle/brand text color as #RRGGBB")
     args = ap.parse_args()
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise SystemExit("Missing OPENAI_API_KEY. Set it in your environment before running.")
+    # Validate mutually exclusive background sources
+    if args.bg_image and args.no_bg:
+        raise SystemExit("--bg-image and --no-bg cannot be used together.")
 
-    client = OpenAI(api_key=api_key)
+    # If using AI generation, require OPENAI_API_KEY and a theme
+    use_ai = not args.no_bg and not args.bg_image
+    if use_ai and not args.theme:
+        raise SystemExit("--theme is required when generating an AI background. Use --bg-image or --no-bg otherwise.")
+
+    client = None
+    if use_ai:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise SystemExit("Missing OPENAI_API_KEY. Set it in your environment or .env, or use --bg-image/--no-bg.")
+        client = OpenAI(api_key=api_key)
 
     style_words = {
         "playful": "playful, friendly, vibrant composition",
@@ -215,8 +272,19 @@ def main():
     )
 
     bg_img: Optional[Image.Image] = None
-    if not args.no_bg:
+    # Load local background image if provided
+    if args.bg_image:
+        img_path = Path(args.bg_image)
+        if not img_path.exists() or not img_path.is_file():
+            raise SystemExit(f"Background image not found: {args.bg_image}")
         try:
+            bg_img = Image.open(img_path)
+        except Exception as e:
+            raise SystemExit(f"Failed to open --bg-image: {e}")
+    # Otherwise, use AI unless --no-bg
+    elif use_ai:
+        try:
+            assert client is not None
             resp = client.images.generate(
                 model=args.model,
                 prompt=prompt,
@@ -235,7 +303,21 @@ def main():
             print(warn, file=sys.stderr)
             bg_img = None
 
-    composed = compose_cover(bg_img, args.title, args.subtitle, args.brand, args.style, args.bg, args.dpi)
+    # Parse color overrides
+    bg_color_override = _parse_hex_color(args.bg_color) if args.bg_color else None
+    title_color_override = _parse_hex_color(args.title_color) if args.title_color else None
+
+    composed = compose_cover(
+        bg_img,
+        args.title,
+        args.subtitle,
+        args.brand,
+        args.style,
+        args.bg,
+        args.dpi,
+        bg_color_override=bg_color_override,
+        title_color_override=title_color_override,
+    )
 
     if args.preview:
         try:

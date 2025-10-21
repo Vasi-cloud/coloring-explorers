@@ -111,10 +111,11 @@ Troubleshooting:
 - Ensure `OPENAI_API_KEY` is set in the same terminal session before running.
 
 ## Generate a Cover for KDP
-Create a 2560x1600 PNG front cover with AI background and text overlay. Images are generated at supported sizes and then upscaled/canvased to 2560x1600.
+Create a 2560x1600 PNG front cover with either an AI-generated background or a local background image, then overlay title/subtitle/brand text.
 
 Requirements:
-- Set `OPENAI_API_KEY` (env var or via `.env` at project root) and install dependencies: `pip install -r scripts/requirements.txt`
+- Install dependencies: `pip install -r scripts/requirements.txt`
+- For AI background generation only: set `OPENAI_API_KEY` (env var or via `.env` at project root)
 
 Examples:
 ```
@@ -134,13 +135,23 @@ python scripts/generate_cover.py \
 # Solid background (no API call)
 python scripts/generate_cover.py \
   --title "Forest Buddies" \
-  --theme "whimsical forest scene" \
   --bg light --style playful --no-bg
+
+# Use a local background image (no API call)
+python scripts/generate_cover.py \
+  --title "Forest Buddies" \
+  --bg-image input/my-forest-photo.jpg --bg light --style playful
+
+# Custom colors: white background, near-black title text
+python scripts/generate_cover.py \
+  --title "Forest Buddies" \
+  --bg-image input/my-forest-photo.jpg \
+  --bg-color "#FFFFFF" --title-color "#141820"
 ```
 
 Flags:
 - `--title` (required) and `--subtitle` (optional)
-- `--theme` (required) background image theme prompt
+- `--theme` background image theme prompt (required when using AI generation)
 - `--brand` footer brand (default: "Coloring Explorers")
 - `--bg` `light|dark` controls background brightness and text color defaults
 - `--style` `playful|elegant|cute` adjusts prompt styling
@@ -149,13 +160,18 @@ Flags:
 - `--model` image model (default `dall-e-3`); e.g. `dall-e-3`, `gpt-image-1`
 - `--size` generation size for the Images API (default `1536x1024`); supported: `1024x1024`, `1024x1536`, `1536x1024`
 - `--no-bg` skip AI background and use a solid canvas (still overlays title/subtitle/brand)
+- `--bg-image <path>` use a local image as the cover background (no API call)
+- `--bg-color "#RRGGBB"` solid background color override; defaults align with `--bg`
+- `--title-color "#RRGGBB"` text color for title/subtitle/brand; default is near-black on light backgrounds
 
 Output:
 - Saves to `exports/covers/<slug>-cover.png`
 
 Behavior:
-- The script never requests `2560x1600` from the API. It generates at a supported size and then upscales/fits to `2560x1600` with aspect preserved and padding filled using a soft `--bg`-matched color.
+- The script never requests `2560x1600` from the API. It generates at a supported size and then upscales/fits to `2560x1600` with aspect preserved and padding letterboxed on a canvas.
+- When `--bg-image` is used, the image is scaled and centered (letterboxed) onto a 2560x1600 canvas, then text is overlaid.
 - On 403/access or API failure, it automatically falls back to `--no-bg` and logs a warning.
+- `OPENAI_API_KEY` is only required when using AI background generation; `--bg-image` and `--no-bg` modes do not require it.
 
 ## License
 MIT
