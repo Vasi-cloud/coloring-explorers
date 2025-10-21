@@ -16,6 +16,22 @@ try:
 except Exception as e:  # pragma: no cover
     raise SystemExit("The 'openai' package is required. Install with: pip install -r scripts/requirements.txt") from e
 
+# Auto-load .env from project root if present
+def _load_dotenv_if_present() -> None:
+    try:
+        from dotenv import load_dotenv  # type: ignore
+    except Exception:
+        return
+    root = Path(__file__).resolve().parents[1]
+    env_path = root / ".env"
+    if env_path.exists():
+        try:
+            load_dotenv(env_path)
+        except Exception:
+            pass
+
+_load_dotenv_if_present()
+
 try:
     from tqdm import tqdm
 except Exception as e:  # pragma: no cover
