@@ -1,5 +1,7 @@
 import subprocess, sys, os
 from pathlib import Path
+from datetime import datetime
+import zipfile
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]  # project root: coloring-explorers
@@ -81,6 +83,28 @@ if go_pdf:
     if preview: args.append("--preview")
     ok = py("export_pdf.py", *args)
     if ok:
+        # Show latest cover download (by modified time)
+        try:
+            candidates = sorted(
+                [p for p in COVERS.glob("*") if p.suffix.lower() in {".png", ".jpg", ".jpeg"}],
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+        except Exception:
+            candidates = []
+        if candidates:
+            latest_cover = candidates[0]
+            try:
+                with open(latest_cover, "rb") as f:
+                    st.download_button(
+                        label="Download latest cover",
+                        data=f.read(),
+                        file_name=latest_cover.name,
+                        mime="image/png" if latest_cover.suffix.lower() == ".png" else "image/jpeg",
+                        key="download_latest_cover",
+                    )
+            except Exception:
+                pass
         # Track the most recently exported PDF
         try:
             candidates = sorted(EXPORTS.glob(f"book-{paper}-*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -88,8 +112,40 @@ if go_pdf:
                 st.session_state["last_pdf_path"] = str(candidates[0])
         except Exception:
             pass
+        # Show download button for interior PDF when available
+        last_pdf = st.session_state.get("last_pdf_path")
+        if last_pdf and Path(last_pdf).exists():
+            with open(last_pdf, "rb") as f:
+                st.download_button(
+                    label="Download interior PDF",
+                    data=f.read(),
+                    file_name=Path(last_pdf).name,
+                    mime="application/pdf",
+                    key="download_interior_pdf",
+                )
         st.success("PDF exported ✅")
         os.startfile(EXPORTS)
+
+# Optional: download pages as ZIP (flat .png files, no subdirs)
+create_zip = st.button("Download pages as ZIP")
+if create_zip:
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_path = EXPORTS / f"pages-{ts}.zip"
+    try:
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for p in sorted(OUTPUT.glob("*.png")):
+                zf.write(p, arcname=p.name)
+        if zip_path.exists():
+            with open(zip_path, "rb") as f:
+                st.download_button(
+                    label="Download pages ZIP",
+                    data=f.read(),
+                    file_name=zip_path.name,
+                    mime="application/zip",
+                    key="download_pages_zip",
+                )
+    except Exception as e:
+        st.error(f"Failed to create ZIP: {e}")
 
 # --- 4) Cover maker ------------------------------------------------------
 st.subheader("4) Make a cover")
