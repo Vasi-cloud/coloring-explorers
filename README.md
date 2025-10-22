@@ -175,3 +175,10 @@ Behavior:
 
 ## License
 MIT
+
+## One-click launch
+
+- Double-click `start-ui.bat` to launch the Streamlit UI with UTF-8 and the project virtual environment.
+- Or run the desktop shortcut generator and then double-click the shortcut:
+  - In PowerShell from the project root: `powershell -File .\scripts\make_desktop_shortcut.ps1`
+  - This creates `Coloring Explorers.lnk` on your Desktop that launches the app.
