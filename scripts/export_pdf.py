@@ -2,6 +2,20 @@
 import argparse
 import json
 import random
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+from dotenv import load_dotenv; load_dotenv()
+# --- Auto-load .env for OpenAI API key ---
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except Exception:
+    pass
+# --- End of .env loader ---
+
 from datetime import datetime
 from pathlib import Path
 from pathlib import Path
@@ -125,6 +139,7 @@ def main():
     ap.add_argument("--bleed", choices=["none", "3mm"], default="none", help="add 3mm bleed on all sides")
     ap.add_argument("--shuffle", action="store_true", help="shuffle page order")
     ap.add_argument("--count", type=int, help="limit number of pages included")
+    ap.add_argument("--preview", action="store_true", help="allow fewer than 30 pages (relax count validation)")
     ap.add_argument("--output", default=None, help="output PDF path (defaults to exports/book-<paper>-<timestamp>.pdf)")
     args = ap.parse_args()
 
@@ -141,7 +156,7 @@ def main():
 
     # Validate page count (30–120)
     page_count = len(images)
-    if page_count < 30 or page_count > 120:
+    if (not args.preview) and (page_count < 30 or page_count > 120):
         raise SystemExit(f"Page count must be between 30 and 120; got {page_count}")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M")
