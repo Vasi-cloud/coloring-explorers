@@ -10,6 +10,7 @@ INPUT = ROOT / "input"
 OUTPUT = ROOT / "output"
 EXPORTS = ROOT / "exports"
 COVERS = EXPORTS / "covers"
+PLANS = ROOT / "plans"
 
 st.set_page_config(page_title="Coloring Explorers", layout="centered")
 st.title("🎨 Coloring Explorers – Book Maker")
@@ -28,6 +29,7 @@ def py(script: str, *args: str):
 
 EXPORTS.mkdir(parents=True, exist_ok=True)
 COVERS.mkdir(parents=True, exist_ok=True)
+PLANS.mkdir(parents=True, exist_ok=True)
 
 # --- sidebar: quick links -----------------------------------------------
 st.sidebar.header("Folders")
@@ -53,6 +55,251 @@ if go_gen:
     if ok: st.success("Generation finished ✅")
 
 # --- 2) Process pages ----------------------------------------------------
+############################################################
+# Book Planner
+############################################################
+st.subheader("Book Planner")
+
+# Presets (30 lines each)
+PRESETS = {
+    "New Year": [
+        "fireworks over city skyline",
+        "champagne glasses clinking",
+        "countdown clock striking midnight",
+        "party hats and confetti",
+        "new year parade balloons",
+        "kids watching fireworks",
+        "festive table setting",
+        "calendar turning to january 1",
+        "city skyline with confetti",
+        "sparkler writing in the air",
+        "street celebration crowd",
+        "fireworks reflected on river",
+        "new year banner and streamers",
+        "balloon drop at midnight",
+        "party masks and noise makers",
+        "fireworks behind big clock tower",
+        "friends celebrating at home",
+        "city plaza countdown stage",
+        "confetti shower close-up",
+        "kids wearing party hats",
+        "couple watching fireworks",
+        "festive doorway decorations",
+        "fireworks and crescent moon",
+        "giant digital countdown",
+        "street lanterns and confetti",
+        "sparkling skyline panorama",
+        "fireworks across mountains",
+        "party table with snacks",
+        "confetti poppers and ribbons",
+        "fireworks over clock tower",
+    ],
+    "Cozy Houses": [
+        "cozy forest cabin",
+        "treehouse among tall pines",
+        "cottage in the snow",
+        "lakeside house with dock",
+        "tiny house with garden",
+        "mountain cabin with chimney",
+        "mushroom cottage",
+        "beach hut near waves",
+        "storybook cottage with flowers",
+        "row of quaint townhouses",
+        "lantern-lit front porch",
+        "cabin in autumn forest",
+        "hobbit-like round door house",
+        "cottage with picket fence",
+        "treehouse rope bridge",
+        "cliffside cottage with lighthouse",
+        "snowy village street",
+        "farmhouse with windmill",
+        "lake cabin with canoe",
+        "garden shed with tools",
+        "river cottage on stilts",
+        "A-frame cabin in pines",
+        "cozy attic window scene",
+        "cottage with ivy walls",
+        "tiny cabin in meadow",
+        "house with wraparound porch",
+        "cabin by campfire",
+        "storybook village square",
+        "cottage in flower field",
+        "treehouse with lanterns",
+    ],
+    "Dinosaurs": [
+        "t-rex near volcano",
+        "triceratops in jungle",
+        "stegosaurus with ferns",
+        "brachiosaurus by river",
+        "raptors in tall grass",
+        "pterodactyls over canyon",
+        "ankylosaurus in forest",
+        "parasaurolophus at lake",
+        "iguanodon on hillside",
+        "allosaurus roaring",
+        "spinosaurus near water",
+        "ceratosaurus on rocks",
+        "oviraptor with eggs",
+        "dilophosaurus by trees",
+        "compy pack exploring",
+        "pachycephalosaurus duo",
+        "styracosaurus grazing",
+        "dracorex in brush",
+        "euoplocephalus wandering",
+        "kentrosaurus among palms",
+        "therizinosaurus with claws",
+        "microraptor in branches",
+        "edmontosaurus herd",
+        "corythosaurus trumpeting",
+        "maiasaura with nest",
+        "diplodocus tail swish",
+        "giganotosaurus silhouette",
+        "ouranosaurus by dunes",
+        "cryolophosaurus in snow",
+        "troodon watching stars",
+    ],
+    "Vehicles": [
+        "race car on track",
+        "fire truck with ladder",
+        "excavator at construction",
+        "sailboat on waves",
+        "hot air balloon",
+        "steam locomotive",
+        "bulldozer moving dirt",
+        "bicycle by park",
+        "helicopter over city",
+        "submarine under sea",
+        "rocket launching",
+        "airplane over clouds",
+        "scooter on street",
+        "bus at bus stop",
+        "police car lights",
+        "ambulance speeding",
+        "tractor on farm",
+        "dump truck unloading",
+        "crane lifting load",
+        "tow truck towing",
+        "canoe on lake",
+        "kayak in river",
+        "snowmobile ride",
+        "motorcycle cruiser",
+        "forklift in warehouse",
+        "race boat splash",
+        "rowboat fishing",
+        "spaceship cockpit",
+        "glider above hills",
+        "blimp over stadium",
+    ],
+}
+
+# Keep plan text in session
+default_plan = st.session_state.get("plan_text", "")
+plan_text = st.text_area("One prompt per line", value=default_plan, height=300)
+st.session_state["plan_text"] = plan_text
+
+colp1, colp2 = st.columns([2, 2])
+with colp1:
+    preset_name = st.selectbox("Preset", list(PRESETS.keys()))
+    if st.button("Load preset"):
+        st.session_state["plan_text"] = "\n".join(PRESETS[preset_name])
+        st.experimental_rerun()
+with colp2:
+    # Save / Load plan files
+    fname_default = f"plan-{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
+    plan_filename = st.text_input("Plan filename", value=fname_default)
+    if st.button("Save plan"):
+        try:
+            dest = PLANS / plan_filename
+            dest.write_text(st.session_state.get("plan_text", ""), encoding="utf-8")
+            st.success(f"Saved plan: {dest.name}")
+        except Exception as e:
+            st.error(f"Failed to save: {e}")
+
+plan_files = sorted([p for p in PLANS.glob("*.txt")], key=lambda p: p.stat().st_mtime, reverse=True)
+colp3, colp4 = st.columns([3, 1])
+with colp3:
+    load_choice = st.selectbox("Load plan", [p.name for p in plan_files]) if plan_files else None
+with colp4:
+    if st.button("Load plan") and load_choice:
+        try:
+            data = (PLANS / load_choice).read_text(encoding="utf-8")
+            st.session_state["plan_text"] = data
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Failed to load: {e}")
+
+# Parse plan lines
+lines = [ln.strip() for ln in st.session_state.get("plan_text", "").splitlines() if ln.strip()]
+st.caption(f"Detected pages: {len(lines)}")
+
+def generate_single_page(idx: int, prompt_line: str) -> bool:
+    """Generate one page then rename input/output to page-XXXX."""
+    before_in = set(INPUT.glob("*.png"))
+    before_out = set(OUTPUT.glob("*.png"))
+    ok = py(
+        "generate_coloring_pages.py",
+        "--prompt", prompt_line,
+        "--count", "1",
+        "--model", model,
+    )
+    if not ok:
+        return False
+    after_in = set(INPUT.glob("*.png"))
+    after_out = set(OUTPUT.glob("*.png"))
+    new_in = sorted(list(after_in - before_in), key=lambda p: p.stat().st_mtime)
+    new_out = sorted(list(after_out - before_out), key=lambda p: p.stat().st_mtime)
+    src_in = new_in[-1] if new_in else None
+    src_out = new_out[-1] if new_out else None
+    if not src_in:
+        return False
+    tgt_in = INPUT / f"page-{idx:04d}.png"
+    tgt_out = OUTPUT / f"page-{idx:04d}_coloring.png"
+    try:
+        if tgt_in.exists(): tgt_in.unlink()
+        src_in.rename(tgt_in)
+        if src_out:
+            if tgt_out.exists(): tgt_out.unlink()
+            src_out.rename(tgt_out)
+        return True
+    except Exception:
+        return True
+
+colg1, colg2 = st.columns([2, 2])
+with colg1:
+    go_plan = st.button("Generate from plan")
+with colg2:
+    if lines:
+        sel_idx = st.selectbox("Regenerate page #", list(range(1, len(lines)+1)))
+        go_regen = st.button("Regenerate selected page")
+    else:
+        sel_idx, go_regen = None, False
+
+if go_plan and lines:
+    t0 = datetime.now()
+    made = skipped = 0
+    prog = st.progress(0)
+    for i, text in enumerate(lines, start=1):
+        ok = generate_single_page(i, text)
+        if ok:
+            made += 1
+        else:
+            skipped += 1
+        prog.progress(min(i/len(lines), 1.0))
+    dt = (datetime.now() - t0).total_seconds()
+    st.success(f"Done. Generated {made}, skipped {skipped}, elapsed {dt:.1f}s")
+
+if go_regen and sel_idx is not None and 1 <= sel_idx <= len(lines):
+    t0 = datetime.now()
+    ok = generate_single_page(sel_idx, lines[sel_idx-1])
+    dt = (datetime.now() - t0).total_seconds()
+    if ok:
+        st.success(f"Regenerated page {sel_idx} in {dt:.1f}s")
+    else:
+        st.error(f"Failed to regenerate page {sel_idx}")
+
+############################################################
+# 2) Process
+############################################################
 st.subheader("2) Process to bold, KDP-ready")
 resize = st.text_input("Resize (pixels W x H)", value="2550x3300")
 thicken = st.slider("Thicken lines", 0, 6, 2)
