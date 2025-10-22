@@ -2,32 +2,12 @@
 import argparse
 import base64
 import os
-# --- Auto-load .env for OpenAI API key ---
+import sys
 from pathlib import Path
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
-except Exception:
-    pass
-# --- End of .env loader ---
-
-from pathlib import Path
-from pathlib import Path
-try:
-    from dotenv import load_dotenv
-    load_dotenv( Path(__file__).resolve().parents[1] / ".env" )
-except Exception:
-    pass
 from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
-import sys
 
-try:
-    from openai import OpenAI
-except Exception as e:  # pragma: no cover
-    raise SystemExit("The 'openai' package is required. Install with: pip install -r scripts/requirements.txt") from e
 
 # Auto-load .env from project root if present
 def _load_dotenv_if_present() -> None:
@@ -42,6 +22,7 @@ def _load_dotenv_if_present() -> None:
             load_dotenv(env_path)
         except Exception:
             pass
+
 
 _load_dotenv_if_present()
 
@@ -162,7 +143,6 @@ def compose_cover(
 
     # Title sizing
     title_font_size = 140
-    font = load_font(title_font_size)
     max_width = int(TARGET_SIZE[0] * 0.88)
 
     def shrink_to_fit(text: str, size: int, min_size: int = 64) -> ImageFont.ImageFont:
@@ -182,7 +162,7 @@ def compose_cover(
     title_x = (TARGET_SIZE[0] - title_w) // 2
     title_y = int(TARGET_SIZE[1] * 0.10)
 
-    # Draw shadow
+    # Draw shadow and main title
     for dx, dy in [(2, 2), (0, 0)]:
         color = shadow if (dx, dy) != (0, 0) else fg
         draw.text((title_x + dx, title_y + dy), title, font=title_font, fill=color)
@@ -200,7 +180,7 @@ def compose_cover(
             draw.text((sub_x + dx, sub_y + dy), subtitle, font=sub_font, fill=color)
 
     # Brand footer
-    brand_text = theme_style + (f" · {brand}" if brand else "")
+    brand_text = theme_style + (f" | {brand}" if brand else "")
     brand_font = load_font(50)
     b_bbox = draw.textbbox((0, 0), brand_text, font=brand_font)
     b_w = b_bbox[2] - b_bbox[0]
@@ -251,6 +231,13 @@ def main():
 
     client = None
     if use_ai:
+        try:
+            from openai import OpenAI  # lazy import for no-AI modes
+        except Exception as e:  # pragma: no cover
+            raise SystemExit(
+                "The 'openai' package is required for AI background generation. Install with: pip install -r scripts/requirements.txt"
+            ) from e
+
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise SystemExit("Missing OPENAI_API_KEY. Set it in your environment or .env, or use --bg-image/--no-bg.")
@@ -263,13 +250,13 @@ def main():
     }[args.style]
     bg_phrase = "light background" if args.bg == "light" else "dark background"
 
-    # Prompt for background art; ask for clean area for title. Do not demand exact pixels.
+    # Prompt for background art
     prompt = (
         f"Front book cover background art. "
         f"Children's coloring book. {style_words}. {bg_phrase}. "
         f"Leave clean space for title. Avoid any text or watermarks. "
         f"Theme: {args.theme}."
-    )
+    ) if use_ai else ""
 
     bg_img: Optional[Image.Image] = None
     # Load local background image if provided
@@ -304,8 +291,11 @@ def main():
             bg_img = None
 
     # Parse color overrides
-    bg_color_override = _parse_hex_color(args.bg_color) if args.bg_color else None
-    title_color_override = _parse_hex_color(args.title_color) if args.title_color else None
+    try:
+        bg_color_override = _parse_hex_color(args.bg_color) if args.bg_color else None
+        title_color_override = _parse_hex_color(args.title_color) if args.title_color else None
+    except ValueError as ve:
+        raise SystemExit(str(ve))
 
     composed = compose_cover(
         bg_img,
@@ -327,7 +317,7 @@ def main():
 
     out_dir = Path(__file__).resolve().parents[1] / "exports" / "covers"
     ensure_dir(out_dir)
-    slug = slugify(args.title or args.theme) or "cover"
+    slug = slugify(args.title or (args.theme or "")) or "cover"
     out_path = out_dir / f"{slug}-cover.png"
     composed.save(out_path, format="PNG", dpi=(args.dpi, args.dpi))
     print(f"Saved cover: {out_path}")
