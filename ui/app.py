@@ -324,11 +324,20 @@ preview = st.checkbox("Preview (allow fewer than 30 pages)", value=False)
 shuffle = st.checkbox("Shuffle pages", value=False)
 go_pdf = st.button("Export PDF")
 if go_pdf:
-    args = ["--input", str(OUTPUT), "--paper", paper, "--bleed", bleed, "--count", str(count_pdf)]
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    pdf_path = EXPORTS / f"book-{paper}-{ts}.pdf"
+    args = [
+        "--input", str(OUTPUT),
+        "--paper", paper,
+        "--bleed", bleed,
+        "--count", str(count_pdf),
+        "--output", str(pdf_path),
+    ]
     if shuffle: args.append("--shuffle")
     if preview: args.append("--preview")
     ok = py("export_pdf.py", *args)
     if ok:
+        st.session_state["last_pdf_path"] = str(pdf_path)
         # Show latest cover download (by modified time)
         try:
             candidates = sorted(
