@@ -5,6 +5,20 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+from dotenv import load_dotenv; load_dotenv()
+# --- Auto-load .env for OpenAI API key ---
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except Exception:
+    pass
+# --- End of .env loader ---
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path

@@ -13,7 +13,7 @@ COVERS = EXPORTS / "covers"
 PLANS = ROOT / "plans"
 
 st.set_page_config(page_title="Coloring Explorers", layout="centered")
-st.title("🎨 Coloring Explorers – Book Maker")
+st.title("ðŸŽ¨ Coloring Explorers â€“ Book Maker")
 
 # --- helpers -------------------------------------------------------------
 def run(cmd: list[str]):
@@ -45,14 +45,14 @@ st.subheader("1) Generate pages")
 prompt = st.text_input("Prompt (theme)", value="cute forest animals")
 count = st.number_input("How many pages", min_value=1, max_value=120, value=10, step=1)
 model = st.selectbox("Image model", ["dall-e-3", "gpt-image-1"], index=0)
-go_gen = st.button("🚀 Generate")
+go_gen = st.button("ðŸš€ Generate")
 
 if go_gen:
     ok = py("generate_coloring_pages.py",
             "--prompt", prompt,
             "--count", str(count),
             "--model", model)
-    if ok: st.success("Generation finished ✅")
+    if ok: st.success("Generation finished âœ…")
 
 # --- 2) Process pages ----------------------------------------------------
 ############################################################
@@ -306,24 +306,23 @@ thicken = st.slider("Thicken lines", 0, 6, 2)
 threshold = st.slider("B/W threshold", 80, 220, 160)
 dpi = st.number_input("DPI", 72, 600, 300, 1)
 trim = st.checkbox("Trim white margins", value=False)
-go_proc = st.button("🛠️ Process")
+go_proc = st.button("ðŸ› ï¸ Process")
 
 if go_proc:
     args = ["--input", str(INPUT), "--output", str(OUTPUT), "--resize", resize,
             "--thicken", str(thicken), "--threshold", str(threshold), "--dpi", str(dpi)]
     if trim: args.append("--trim-margins")
     ok = py("process_images.py", *args)
-    if ok: st.success("Processing finished ✅")
+    if ok: st.success("Processing finished âœ…")
 
 # --- 3) Export PDF -------------------------------------------------------
 st.subheader("3) Export interior PDF")
 paper = st.selectbox("Paper size", ["letter", "a4"], index=0)
 bleed = st.selectbox("Bleed", ["none", "3mm"], index=0)
- count_pdf = st.number_input("Page count in PDF", 1, 120, min(count, 60))
- preview = st.checkbox("Preview (allow fewer than 30 pages)", value=False)
+count_pdf = st.number_input("Page count in PDF", 1, 120, min(count, 60))
+preview = st.checkbox("Preview (allow fewer than 30 pages)", value=False)
 shuffle = st.checkbox("Shuffle pages", value=False)
-go_pdf = st.button("📄 Export PDF")
-
+go_pdf = st.button("Export PDF")
 if go_pdf:
     args = ["--input", str(OUTPUT), "--paper", paper, "--bleed", bleed, "--count", str(count_pdf)]
     if shuffle: args.append("--shuffle")
@@ -370,7 +369,7 @@ if go_pdf:
                     mime="application/pdf",
                     key="download_interior_pdf",
                 )
-        st.success("PDF exported ✅")
+        st.success("PDF exported âœ…")
         os.startfile(EXPORTS)
 
 # Optional: download pages as ZIP (flat .png files, no subdirs)
@@ -407,7 +406,7 @@ bg_color = col1.text_input("Solid BG hex (no AI)", value="#FFFFFF")
 title_color = col2.text_input("Title color", value="#111111")
 bg_image = st.file_uploader("Or choose a local background image (no AI)", type=["png","jpg","jpeg"])
 
-go_cover = st.button("🎆 Generate Cover")
+go_cover = st.button("ðŸŽ† Generate Cover")
 
 if go_cover:
     args = ["--title", title, "--brand", brand, "--style", style]
@@ -425,5 +424,5 @@ if go_cover:
 
     ok = py("generate_cover.py", *args)
     if ok:
-        st.success("Cover generated ✅")
+        st.success("Cover generated âœ…")
         os.startfile(COVERS)
